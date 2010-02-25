@@ -50,12 +50,12 @@ public class FilterFw extends JFrame {
         mi = new JMenuItem("Open");
 		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl O"));
         mi.setMnemonic(KeyEvent.VK_O);
-        mi.addActionListener(new FrameActionListener(this) {
+        mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
             	JFileChooser fc = new JFileChooser();
             	addFileFilters(fc);
-            	if (fc.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
-            		frame.openImage(fc.getSelectedFile().getAbsolutePath());
+            	if (fc.showOpenDialog(getSelf()) == JFileChooser.APPROVE_OPTION) {
+            		getSelf().openImage(fc.getSelectedFile().getAbsolutePath());
             	}
             }
         });
@@ -64,9 +64,9 @@ public class FilterFw extends JFrame {
         mi = new JMenuItem("Reopen");
 		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl R"));
         mi.setMnemonic(KeyEvent.VK_R);
-        mi.addActionListener(new FrameActionListener(this) {
+        mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
-            	ImageFrame f = frame.getSelectedFrame();
+            	ImageFrame f = getSelf().getSelectedFrame();
             	if (f != null) {
             		f.reloadImage();
             	}
@@ -76,9 +76,9 @@ public class FilterFw extends JFrame {
         // Save
         mi = new JMenuItem("Save");
         mi.setMnemonic(KeyEvent.VK_S);
-        mi.addActionListener(new FrameActionListener(this) {
+        mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
-            	ImageFrame f = frame.getSelectedFrame();
+            	ImageFrame f = getSelf().getSelectedFrame();
             	f.trySaveImage();
             }
         });
@@ -87,20 +87,20 @@ public class FilterFw extends JFrame {
         mi = new JMenuItem("Save As");
 		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl S"));
         mi.setMnemonic(KeyEvent.VK_S);
-        mi.addActionListener(new FrameActionListener(this) {
+        mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
-            	ImageFrame f = frame.getSelectedFrame();
+            	ImageFrame f = getSelf().getSelectedFrame();
             	f.saveImageAs();
             }
         });
         fileMenu.add(mi);
         // Open project
         mi = new JMenuItem("Open Project");
-        mi.addActionListener(new FrameActionListener(this) {
+        mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
 				try {
 			    	JFileChooser fc = new JFileChooser();
-			    	if (fc.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
+			    	if (fc.showOpenDialog(getSelf()) == JFileChooser.APPROVE_OPTION) {
 		            	FileInputStream underlyingStream = new FileInputStream(fc.getSelectedFile().getAbsolutePath());
 		            	ObjectInputStream serializer;
 						serializer = new ObjectInputStream(underlyingStream);
@@ -121,19 +121,19 @@ public class FilterFw extends JFrame {
         fileMenu.add(mi);
         // Save project
         mi = new JMenuItem("Save Project");
-        mi.addActionListener(new FrameActionListener(this) {
+        mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
             	JOptionPane.showMessageDialog(getSelf(),
             		    "All images must now be saved unless they already exist on disk, or they will not be added to the project!",
             		    "Warning",
             		    JOptionPane.WARNING_MESSAGE);
             	saveAllImages();
-            	JOptionPane.showMessageDialog(frame,
+            	JOptionPane.showMessageDialog(getSelf(),
             		    "Now choose the filename for the project (no file extension required).", 
             		    "Message", JOptionPane.INFORMATION_MESSAGE);
 				try {
 			    	JFileChooser fc = new JFileChooser();
-			    	if (fc.showSaveDialog(frame) == JFileChooser.APPROVE_OPTION) {
+			    	if (fc.showSaveDialog(getSelf()) == JFileChooser.APPROVE_OPTION) {
 		            	FileOutputStream underlyingStream = new FileOutputStream(fc.getSelectedFile().getAbsolutePath());
 		            	ObjectOutputStream serializer;
 						serializer = new ObjectOutputStream(underlyingStream);
@@ -164,9 +164,9 @@ public class FilterFw extends JFrame {
 		// View -> Zoom In
         mi = new JMenuItem("Zoom in");
 		mi.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_UP, KeyEvent.CTRL_MASK));
-        mi.addActionListener(new FrameActionListener(this) {
+        mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
-            	ImageFrame f = frame.getSelectedFrame();
+            	ImageFrame f = getSelf().getSelectedFrame();
             	if (f != null) {
             		f.zoom(0.1f, true);
             	}
@@ -176,9 +176,9 @@ public class FilterFw extends JFrame {
 		// View -> Zoom Out
         mi = new JMenuItem("Zoom out");
 		mi.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, KeyEvent.CTRL_MASK));
-        mi.addActionListener(new FrameActionListener(this) {
+        mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
-            	ImageFrame f = frame.getSelectedFrame();
+            	ImageFrame f = getSelf().getSelectedFrame();
             	if (f != null) {
             		f.zoom(-0.1f, true);
             	}
@@ -188,9 +188,9 @@ public class FilterFw extends JFrame {
 		// Edit -> Duplicate
         mi = new JMenuItem("Duplicate image");
 		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl D"));
-        mi.addActionListener(new FrameActionListener(this) {
+        mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
-            	ImageFrame f = frame.getSelectedFrame();
+            	ImageFrame f = getSelf().getSelectedFrame();
             	if (f != null) {
             		BufferedImage bi = f.getImage();
             		WritableRaster raster = bi.copyData( null );
@@ -283,13 +283,13 @@ public class FilterFw extends JFrame {
 		filtersMenu.removeAll();
 
 		mi = new JMenuItem("Repeat last filter");
-		mi.addActionListener(new FrameActionListener(this) {
+		mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
-            	ImageFrame f = frame.getSelectedFrame();
+            	ImageFrame f = getSelf().getSelectedFrame();
             	if (f == null) return;
-            	if (frame.filterManager.getLastUsed() != null) {
-	        		PluginHelperImpl ph = frame.filterManager.process(frame, f.getImage(), frame.filterManager.getLastUsed());
-	        		frame.refreshFilteredImages(ph);
+            	if (getSelf().filterManager.getLastUsed() != null) {
+	        		PluginHelperImpl ph = getSelf().filterManager.process(getSelf(), f.getImage(), getSelf().filterManager.getLastUsed());
+	        		getSelf().refreshFilteredImages(ph);
             	}
             }
 		});
@@ -301,23 +301,23 @@ public class FilterFw extends JFrame {
 		for (FilterPlugin filter : filterManager.filters) {
 			mi = new JMenuItem(filter.name());
 			mi.setName(filter.getClass().getName());
-			mi.addActionListener(new FrameActionListener(this) {
+			mi.addActionListener(new ActionListener() {
 	            public void actionPerformed(ActionEvent event) {
-	            	ImageFrame f = frame.getSelectedFrame();
+	            	ImageFrame f = getSelf().getSelectedFrame();
 	            	if (f == null) return;
-	            	PluginHelperImpl ph = frame.filterManager.process(frame, f.getImage(), ((JMenuItem)event.getSource()).getName());
-	        		frame.refreshFilteredImages(ph);
-	        		frame.filtersMenu.getItem(0).setEnabled(true);
+	            	PluginHelperImpl ph = getSelf().filterManager.process(getSelf(), f.getImage(), ((JMenuItem)event.getSource()).getName());
+	            	getSelf().refreshFilteredImages(ph);
+	            	getSelf().filtersMenu.getItem(0).setEnabled(true);
 	            }
 			});
 			filtersMenu.add(mi);
 		}
 		
 		mi = new JMenuItem("Reload filters");
-		mi.addActionListener(new FrameActionListener(this) {
+		mi.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent event) {
-                frame.filterManager.loadAllFilters();
-                frame.refreshFiltersMenu();
+            	getSelf().filterManager.loadAllFilters();
+            	getSelf().refreshFiltersMenu();
             }
 		});
 		filtersMenu.add(mi);
@@ -347,14 +347,6 @@ public class FilterFw extends JFrame {
 	    gui.setVisible(true);
 	}
 
-}
-
-//Generic action listener that accepts a frame parameter
-abstract class FrameActionListener implements ActionListener {
-	FilterFw frame;
-	public FrameActionListener(FilterFw _frame) {
-		frame = _frame;
-	}
 }
 
 //Filter for open file dialog
