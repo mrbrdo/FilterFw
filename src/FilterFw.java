@@ -8,6 +8,11 @@ import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
 import java.beans.PropertyVetoException;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 
 import javax.swing.JCheckBoxMenuItem;
@@ -17,6 +22,7 @@ import javax.swing.JInternalFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.KeyStroke;
 import javax.swing.event.MenuEvent;
@@ -68,18 +74,81 @@ public class FilterFw extends JFrame {
         });
         fileMenu.add(mi);
         // Save
+        mi = new JMenuItem("Save");
+        mi.setMnemonic(KeyEvent.VK_S);
+        mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+            	ImageFrame f = frame.getSelectedFrame();
+            	f.trySaveImage();
+            }
+        });
+        fileMenu.add(mi);
+        // Save As
         mi = new JMenuItem("Save As");
 		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl S"));
         mi.setMnemonic(KeyEvent.VK_S);
         mi.addActionListener(new FrameActionListener(this) {
             public void actionPerformed(ActionEvent event) {
-            	JFileChooser fc = new JFileChooser();
-            	if (fc.showSaveDialog(frame) == JFileChooser.APPROVE_OPTION) {
-            		ImageFrame f = frame.getSelectedFrame();
-                	if (f != null) {
-	            		f.saveImage(fc.getSelectedFile().getAbsolutePath());
-	            	}
-            	}
+            	ImageFrame f = frame.getSelectedFrame();
+            	f.saveImageAs();
+            }
+        });
+        fileMenu.add(mi);
+        // Open project
+        mi = new JMenuItem("Open Project");
+        mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+				try {
+			    	JFileChooser fc = new JFileChooser();
+			    	if (fc.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
+		            	FileInputStream underlyingStream = new FileInputStream(fc.getSelectedFile().getAbsolutePath());
+		            	ObjectInputStream serializer;
+						serializer = new ObjectInputStream(underlyingStream);
+		            	ArrayList<String> filenames = (ArrayList<String>) serializer.readObject();
+		            	serializer.close();
+		            	underlyingStream.close();
+		            	if (filenames != null) {
+		            		for (String filename : filenames) {
+		            			openImage(filename);
+		            		}
+		            	}
+			    	}
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+            }
+        });
+        fileMenu.add(mi);
+        // Save project
+        mi = new JMenuItem("Save Project");
+        mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+            	JOptionPane.showMessageDialog(getSelf(),
+            		    "All images must now be saved unless they already exist on disk, or they will not be added to the project!",
+            		    "Warning",
+            		    JOptionPane.WARNING_MESSAGE);
+            	saveAllImages();
+            	JOptionPane.showMessageDialog(frame,
+            		    "Now choose the filename for the project (no file extension required).", 
+            		    "Message", JOptionPane.INFORMATION_MESSAGE);
+				try {
+			    	JFileChooser fc = new JFileChooser();
+			    	if (fc.showSaveDialog(frame) == JFileChooser.APPROVE_OPTION) {
+		            	FileOutputStream underlyingStream = new FileOutputStream(fc.getSelectedFile().getAbsolutePath());
+		            	ObjectOutputStream serializer;
+						serializer = new ObjectOutputStream(underlyingStream);
+		            	ArrayList<String> filenames = new ArrayList<String>();
+		            	for (ImageFrame f : getImageFrames()) {
+		            		String path = f.getImagePath();
+		            		if (path != null && path != "") filenames.add(path);
+		            	}
+		            	serializer.writeObject(filenames);
+		            	serializer.close();
+		            	underlyingStream.close();
+			    	}
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
             }
         });
         fileMenu.add(mi);
@@ -126,7 +195,7 @@ public class FilterFw extends JFrame {
             		BufferedImage bi = f.getImage();
             		WritableRaster raster = bi.copyData( null );
             		BufferedImage copy = new BufferedImage( bi.getColorModel(), raster, bi.isAlphaPremultiplied(), null );
-            		desktop.add(new ImageFrame("New image", copy, null));
+            		desktop.add(new ImageFrame(getSelf(), "New image", copy, null));
             	}
             }
         });
@@ -156,7 +225,8 @@ public class FilterFw extends JFrame {
 		
 		addWindowListener(new WindowAdapter() {
 		  public void windowClosing(WindowEvent e) {
-		    System.exit(0);
+			  saveAllImages();
+			  System.exit(0);
 		  }
 		});
 		
@@ -167,6 +237,16 @@ public class FilterFw extends JFrame {
 		filtersPath = filtersPath.replaceAll("%20", " ");
 		filterManager = new FilterManager(this, filtersPath);
 		refreshFiltersMenu();
+	}
+	
+	public void saveAllImages() {
+		  for (ImageFrame f : getImageFrames()) {
+			  f.askToSaveImage();
+		  }
+	}
+	
+	public FilterFw getSelf() {
+		return this;
 	}
 	
 	public ImageFrame getSelectedFrame() {
@@ -191,7 +271,10 @@ public class FilterFw extends JFrame {
 	public void refreshFilteredImages(PluginHelperImpl ph) {
 		ArrayList<BufferedImage> list = ph.getUsedImages();
 		for (ImageFrame imageFrame : getImageFrames()) {
-			if (list.indexOf(imageFrame.getImage()) > -1) imageFrame.repaint();
+			if (list.indexOf(imageFrame.getImage()) > -1) {
+				imageFrame.repaint();
+				imageFrame.invalidateImage();
+			}
 		}
 	}
 	
@@ -244,21 +327,25 @@ public class FilterFw extends JFrame {
 		return desktop;
 	}
 	
+	public void openImageEditor(String name, BufferedImage image, String originalPath) {
+		desktop.add(new ImageFrame(this, name, image, originalPath));
+	}
+	
 	public void openImage(String path) {
 		File f = new File(path);
 		BufferedImage bimg = ImageHelper.loadImage(path);
-		desktop.add(new ImageFrame(f.getName(), bimg, path));
+		openImageEditor(f.getName(), bimg, path);
 	}
 	
 	public static void addFileFilters(JFileChooser fc) {
     	fc.addChoosableFileFilter(new CustomFileFilter(new String[] {"jpeg", "jpg", "png", "gif"}));
 	}
 
-  public static void main(String[] args) {
-	FilterFw gui = new FilterFw();
-    gui.setSize(600, 400);
-    gui.setVisible(true);
-  }
+	public static void main(String[] args) {
+		FilterFw gui = new FilterFw();
+	    gui.setSize(600, 400);
+	    gui.setVisible(true);
+	}
 
 }
 

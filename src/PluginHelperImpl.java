@@ -16,11 +16,31 @@ public class PluginHelperImpl implements PluginHelper {
 		usedImages = new ArrayList<BufferedImage>();
 		usedImages.add(image);
 	}
+
+	@Override
+	public InputImage newImage(int width, int height) {
+		BufferedImage newImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		frame.openImageEditor("New image", newImage, null);
+		return new InputImageImpl(newImage);
+	}
+	
+	@Override
+	public InputImage[] allImages() {
+		ArrayList<ImageFrame> list = frame.getImageFrames();
+		if (list.size() == 0) return null;
+		InputImage[] result = new InputImage[list.size()];
+		for (int i=0; i<list.size(); i++) {
+			BufferedImage p = list.get(i).getImage();
+			result[i] = new InputImageImpl(p);
+			usedImages.add(p);
+		}
+		return result;
+	}
 	
 	@Override
 	public InputImage requestAdditionalImage() {
 		ArrayList<ImageFrame> list = frame.getImageFrames();
-		if (list.size() == 0) return null;
+		if (list.size() - usedImages.size() <= 0) return null;
 		Object[] possibilities = new Object[list.size() - usedImages.size()];
 		for (int i=0, j=0; i<list.size(); i++) {
 			if (usedImages.indexOf(list.get(i).getImage()) == -1)

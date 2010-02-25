@@ -23,7 +23,7 @@ public final class ImageHelper {
         return bimg;
     }
 	
-	public static void saveImage(BufferedImage image, String ref) {  
+	public static String saveImage(BufferedImage image, String ref) {  
 	    try {
 	    	if (ref.indexOf(".") == -1) ref += ".jpg"; // default ext, .jpg
 	        String format = (ref.endsWith(".png")) ? "png" : "jpg";  
@@ -31,5 +31,6 @@ public final class ImageHelper {
 	    } catch (IOException e) {  
 	        e.printStackTrace();  
 	    }  
+	    return ref;
 	}
 }

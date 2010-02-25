@@ -1,5 +1,6 @@
 package filters;
 import java.awt.Color;
+import java.util.Random;
 
 public class test implements filters.FilterPlugin {
 	public String name() {
@@ -18,6 +19,15 @@ public class test implements filters.FilterPlugin {
 					Color prev = img.get(x, y);
 					img.set(x, y, new Color(prev.getRed(), 255, prev.getBlue(), 255));
 				}
+			}
+		}
+		
+		// new image - noise
+		Random rand = new Random();
+		InputImage n = h.newImage(200, 200);
+		for (int x=0; x<200; x++) {
+			for (int y=0; y<200; y++) {
+				n.set(x, y, new Color(rand.nextInt(256), rand.nextInt(256), rand.nextInt(256), 255));
 			}
 		}
 	}
