@@ -30,4 +30,9 @@ public class InputImageImpl implements InputImage {
 	public int getWidth() {
 		return img.getWidth();
 	}
+	
+	@Override
+	public BufferedImage getSourceImage() {
+		return img;
+	}
 }
