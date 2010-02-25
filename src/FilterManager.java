@@ -7,9 +7,16 @@ import filters.FilterPlugin;
 public class FilterManager {
 	String filtersPath = "";
 	ArrayList<FilterPlugin> filters;
+	FilterPlugin lastUsed = null;
+	FilterFw mainFrame;
 	
-	public FilterManager(String path) {
-		filtersPath = path.replaceAll("%20", " ");
+	public FilterPlugin getLastUsed() {
+		return lastUsed;
+	}
+
+	public FilterManager(FilterFw mainFrame, String filtersPath) {
+		this.filtersPath = filtersPath;
+		this.mainFrame = mainFrame;
 		filters = new ArrayList<FilterPlugin>();
 		loadAllFilters();
 	}
@@ -24,23 +31,31 @@ public class FilterManager {
 	    	  String ext = filename.substring(filename.lastIndexOf('.')+1, filename.length());
 	    	  String name = filename.substring(0, filename.lastIndexOf('.'));
 	    	  if (ext.equals("class") &&
-	    			  !name.equals("ImagePixels") &&
-	    			  !name.equals("FilterPlugin"))
+	    			  !name.equals("PluginHelper") &&
+	    			  !name.equals("FilterPlugin") &&
+	    			  !name.equals("InputImage"))
 	    		  reloadFilter(name);
 	      } else if (listOfFiles[i].isDirectory()) {
 	      }
 	    }
 	}
 	
-	public void process(BufferedImage image, String filterName) {
-		if (image == null) return;
-		ImagePixelsImpl ipi = new ImagePixelsImpl();
-		ipi.setImage(image);
+	public PluginHelperImpl process(FilterFw frame, BufferedImage image, String filterName) {
 		for (FilterPlugin fp : filters) {
 			if (fp.getClass().getName().equals(filterName)) {
-				fp.process(ipi);
+				return process(frame, image, fp);
 			}
 		}
+		return null;
+	}
+	
+	public PluginHelperImpl process(FilterFw frame, BufferedImage image, FilterPlugin filter) {
+		if (image == null) return null;
+		PluginHelperImpl ph = new PluginHelperImpl(frame, image);
+		InputImageImpl ii = new InputImageImpl(image);
+		filter.process(ii, ph);
+		lastUsed = filter;
+		return ph;
 	}
 	
 	public boolean reloadFilter(String name) {

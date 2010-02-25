@@ -1,17 +1,23 @@
 package filters;
 import java.awt.Color;
-import java.util.Random;
 
 public class test implements filters.FilterPlugin {
 	public String name() {
-		return "Test1: Random noise";
+		return "Test: Greenify";
 	}
 	
-	public void process(ImagePixels image) {
-		Random rand = new Random();
-		for (int i=0; i<image.getHeight(); i++) {
-			for (int j=0; j<image.getWidth(); j++) {
-				image.set(j, i, new Color(rand.nextInt(255), rand.nextInt(255), rand.nextInt(255), 255));
+	public void process(InputImage image, PluginHelper h) {
+		InputImage[] images = new InputImage[2];
+		images[0] = image;
+		images[1] = h.requestAdditionalImage(); // returns null if canceled
+		for (int i=0; i<2; i++) {
+			InputImage img = images[i];
+			if (img == null) continue; // !!!
+			for (int y=0; y<img.getHeight(); y++) {
+				for (int x=0; x<img.getWidth(); x++) {
+					Color prev = img.get(x, y);
+					img.set(x, y, new Color(prev.getRed(), 255, prev.getBlue(), 255));
+				}
 			}
 		}
 	}

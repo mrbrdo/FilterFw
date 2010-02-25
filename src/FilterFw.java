@@ -1,93 +1,276 @@
-import java.io.*;
-import java.awt.*;
-import java.awt.event.*;
+import java.awt.BorderLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+import java.beans.PropertyVetoException;
+import java.io.File;
+import java.util.ArrayList;
 
-import javax.imageio.ImageIO;
-import javax.swing.*;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JInternalFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JScrollPane;
+import javax.swing.KeyStroke;
+import javax.swing.event.MenuEvent;
+import javax.swing.event.MenuListener;
 
 import filters.FilterPlugin;
 
-// Panel for drawing images
-class JImagePanel extends JPanel {
-	private static final long serialVersionUID = 4292464394145538564L;
-	private BufferedImage image;  
-    int x, y;
-    private static final int histogramHeight = 100;
-    
-    public JImagePanel(BufferedImage image, int x, int y) {  
-        super();
-        this.x = x;  
-        this.y = y;
-        setImage(image);
-    }
-    
-    public BufferedImage getImage() {
-    	return image;
-    }
-    
-    public void setImage(BufferedImage _image) {
-    	image = _image;
-    	if (image == null) return;
-    	int prefWidth = image.getWidth();
-    	if (3*256 > prefWidth) prefWidth = 3*256;
-    	setPreferredSize(new Dimension(prefWidth, image.getHeight() + histogramHeight));
-    	this.repaint();
-    }
-    
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        
-        g.setColor(new Color(100, 100, 100, 255));
-        g.fillRect(0, 0, this.getWidth(), this.getHeight());
-        
-    	if (image != null) {
-			int y_start = this.getHeight() - histogramHeight;
-			
-    		g.drawImage(image.getScaledInstance(-1, y_start, Image.SCALE_FAST), x, y, null);
-    	
-	    	// Histogram
-			int[][] freq = new int[3][256];
-			for (int i=0; i<3; i++) {
-				for (int j=0; j<256; j++) {
-					freq[i][j] = 0;
-				}
-			}
-	    	for (int x=0; x<image.getWidth(); x++) {
-	    		for (int y=0; y<image.getHeight(); y++) {
-	    			Color pixel = ImagePixelsImpl.int2Color(image.getRGB(x, y));
-	    			freq[0][pixel.getRed()]++;
-	    			freq[1][pixel.getGreen()]++;
-	    			freq[2][pixel.getBlue()]++;
-	    		}
-	    	}
-	    	
-	    	int maxval = 0;
-			for (int i=0; i<3; i++) {
-				for (int j=0; j<256; j++) {
-					if (maxval < freq[i][j]) maxval = freq[i][j];
-				}
-			}
-	    	
-			float mul = histogramHeight / (float) maxval;
-			
-			for (int i=0; i<3; i++) {
-				for (int j=0; j<256; j++) {
-					Color c = Color.red;
-					switch (i) {
-					case 1: { c = Color.green; break; }
-					case 2: { c = Color.blue; break; }
-					}
-					g.setColor(c);
-					g.drawLine(i*256+j, y_start + histogramHeight - (int) (freq[i][j] * mul), i*256+j, y_start + histogramHeight);
-				}
-			}
-    	}
-    }
-}  
+public class FilterFw extends JFrame {
+	private MDIDesktopPane desktop = new MDIDesktopPane();
+	private JMenuBar menuBar = new JMenuBar();
+	private JMenu fileMenu = new JMenu("File");
+	private JMenu editMenu = new JMenu("Edit");
+	private JMenu viewMenu = new JMenu("View");
+	private JMenu filtersMenu = new JMenu("Filters");
+	private JScrollPane scrollPane = new JScrollPane();
+	public FilterManager filterManager;
 
-// Filter for open file dialog
+	public FilterFw() {
+		// =================================
+		// BUILD MENU
+		// =================================
+		JMenuItem mi;
+		fileMenu.setMnemonic(KeyEvent.VK_F);
+		// File -> Open
+        mi = new JMenuItem("Open");
+		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl O"));
+        mi.setMnemonic(KeyEvent.VK_O);
+        mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+            	JFileChooser fc = new JFileChooser();
+            	addFileFilters(fc);
+            	if (fc.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
+            		frame.openImage(fc.getSelectedFile().getAbsolutePath());
+            	}
+            }
+        });
+        fileMenu.add(mi);
+		// File -> Reopen
+        mi = new JMenuItem("Reopen");
+		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl R"));
+        mi.setMnemonic(KeyEvent.VK_R);
+        mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+            	ImageFrame f = frame.getSelectedFrame();
+            	if (f != null) {
+            		f.reloadImage();
+            	}
+            }
+        });
+        fileMenu.add(mi);
+        // Save
+        mi = new JMenuItem("Save As");
+		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl S"));
+        mi.setMnemonic(KeyEvent.VK_S);
+        mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+            	JFileChooser fc = new JFileChooser();
+            	if (fc.showSaveDialog(frame) == JFileChooser.APPROVE_OPTION) {
+            		ImageFrame f = frame.getSelectedFrame();
+                	if (f != null) {
+	            		f.saveImage(fc.getSelectedFile().getAbsolutePath());
+	            	}
+            	}
+            }
+        });
+        fileMenu.add(mi);
+        // File -> Exit
+        mi = new JMenuItem("Exit");
+        mi.setMnemonic(KeyEvent.VK_E);
+        mi.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent event) {
+                System.exit(0);
+            }
+        });
+        fileMenu.add(mi);
+		// View -> Zoom In
+        mi = new JMenuItem("Zoom in");
+		mi.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_UP, KeyEvent.CTRL_MASK));
+        mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+            	ImageFrame f = frame.getSelectedFrame();
+            	if (f != null) {
+            		f.zoom(0.1f, true);
+            	}
+            }
+        });
+        viewMenu.add(mi);
+		// View -> Zoom Out
+        mi = new JMenuItem("Zoom out");
+		mi.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, KeyEvent.CTRL_MASK));
+        mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+            	ImageFrame f = frame.getSelectedFrame();
+            	if (f != null) {
+            		f.zoom(-0.1f, true);
+            	}
+            }
+        });
+        viewMenu.add(mi);
+		// Edit -> Duplicate
+        mi = new JMenuItem("Duplicate image");
+		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl D"));
+        mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+            	ImageFrame f = frame.getSelectedFrame();
+            	if (f != null) {
+            		BufferedImage bi = f.getImage();
+            		WritableRaster raster = bi.copyData( null );
+            		BufferedImage copy = new BufferedImage( bi.getColorModel(), raster, bi.isAlphaPremultiplied(), null );
+            		desktop.add(new ImageFrame("New image", copy, null));
+            	}
+            }
+        });
+        editMenu.add(mi);
+        
+        // Menus
+        filtersMenu.setMnemonic(KeyEvent.VK_I);
+        viewMenu.setMnemonic(KeyEvent.VK_V);
+        editMenu.setMnemonic(KeyEvent.VK_E);
+        
+        // Set up menuBar
+		menuBar.add(fileMenu);
+		menuBar.add(editMenu);
+		menuBar.add(viewMenu);
+		menuBar.add(filtersMenu);
+		menuBar.add(new WindowMenu(desktop));
+		setJMenuBar(menuBar);
+		
+		// =================================
+		// UI
+		// =================================
+		setTitle("FilterFw");
+		
+		scrollPane.getViewport().add(desktop);
+		getContentPane().setLayout(new BorderLayout());
+		getContentPane().add(scrollPane, BorderLayout.CENTER);
+		
+		addWindowListener(new WindowAdapter() {
+		  public void windowClosing(WindowEvent e) {
+		    System.exit(0);
+		  }
+		});
+		
+		// =========================
+		// NON-UI
+		// =========================
+		String filtersPath = getClass().getProtectionDomain().getCodeSource().getLocation().getFile() + "/filters";
+		filtersPath = filtersPath.replaceAll("%20", " ");
+		filterManager = new FilterManager(this, filtersPath);
+		refreshFiltersMenu();
+	}
+	
+	public ImageFrame getSelectedFrame() {
+    	JInternalFrame f = getDesktop().getSelectedFrame();
+    	if (f != null && f.getClass().getName().matches(".*?ImageFrame")) {
+    		ImageFrame ff = (ImageFrame) f;
+    		return ff;
+    	}
+    	return null;
+	}
+	
+	public ArrayList<ImageFrame> getImageFrames() {
+		ArrayList<ImageFrame> result = new ArrayList<ImageFrame>();
+		for (JInternalFrame f : getDesktop().getAllFrames()) {
+			if (f != null && f.getClass().getName().matches(".*?ImageFrame")) {
+				result.add((ImageFrame) f);
+			}
+		}
+		return result;
+	}
+	
+	public void refreshFilteredImages(PluginHelperImpl ph) {
+		ArrayList<BufferedImage> list = ph.getUsedImages();
+		for (ImageFrame imageFrame : getImageFrames()) {
+			if (list.indexOf(imageFrame.getImage()) > -1) imageFrame.repaint();
+		}
+	}
+	
+	public void refreshFiltersMenu() {
+		JMenuItem mi;
+		filtersMenu.removeAll();
+
+		mi = new JMenuItem("Repeat last filter");
+		mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+            	ImageFrame f = frame.getSelectedFrame();
+            	if (f == null) return;
+            	if (frame.filterManager.getLastUsed() != null) {
+	        		PluginHelperImpl ph = frame.filterManager.process(frame, f.getImage(), frame.filterManager.getLastUsed());
+	        		frame.refreshFilteredImages(ph);
+            	}
+            }
+		});
+		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl F"));
+		mi.setEnabled(false);
+		filtersMenu.add(mi);
+		
+		// Filters
+		for (FilterPlugin filter : filterManager.filters) {
+			mi = new JMenuItem(filter.name());
+			mi.setName(filter.getClass().getName());
+			mi.addActionListener(new FrameActionListener(this) {
+	            public void actionPerformed(ActionEvent event) {
+	            	ImageFrame f = frame.getSelectedFrame();
+	            	if (f == null) return;
+	            	PluginHelperImpl ph = frame.filterManager.process(frame, f.getImage(), ((JMenuItem)event.getSource()).getName());
+	        		frame.refreshFilteredImages(ph);
+	        		frame.filtersMenu.getItem(0).setEnabled(true);
+	            }
+			});
+			filtersMenu.add(mi);
+		}
+		
+		mi = new JMenuItem("Reload filters");
+		mi.addActionListener(new FrameActionListener(this) {
+            public void actionPerformed(ActionEvent event) {
+                frame.filterManager.loadAllFilters();
+                frame.refreshFiltersMenu();
+            }
+		});
+		filtersMenu.add(mi);
+	}
+	
+	public MDIDesktopPane getDesktop() {
+		return desktop;
+	}
+	
+	public void openImage(String path) {
+		File f = new File(path);
+		BufferedImage bimg = ImageHelper.loadImage(path);
+		desktop.add(new ImageFrame(f.getName(), bimg, path));
+	}
+	
+	public static void addFileFilters(JFileChooser fc) {
+    	fc.addChoosableFileFilter(new CustomFileFilter(new String[] {"jpeg", "jpg", "png", "gif"}));
+	}
+
+  public static void main(String[] args) {
+	FilterFw gui = new FilterFw();
+    gui.setSize(600, 400);
+    gui.setVisible(true);
+  }
+
+}
+
+//Generic action listener that accepts a frame parameter
+abstract class FrameActionListener implements ActionListener {
+	FilterFw frame;
+	public FrameActionListener(FilterFw _frame) {
+		frame = _frame;
+	}
+}
+
+//Filter for open file dialog
 class CustomFileFilter extends javax.swing.filechooser.FileFilter {
 	private String[] fileExts;
 	public CustomFileFilter(String[] _fileExts) {
@@ -111,179 +294,90 @@ class CustomFileFilter extends javax.swing.filechooser.FileFilter {
     }
 }
 
-// Generic action listener that accepts a frame parameter
-abstract class FrameActionListener implements ActionListener {
-	FilterFw frame;
-	public FrameActionListener(FilterFw _frame) {
-		frame = _frame;
-	}
-}
+/**
+ * Menu component that handles the functionality expected of a standard
+ * "Windows" menu for MDI applications.
+ */
+class WindowMenu extends JMenu {
+  private MDIDesktopPane desktop;
 
-// Action listener for filter menu buttons
-class FilterActionListener extends FrameActionListener {
-	public FilterActionListener(FilterFw _frame) {
-		super(_frame);
-	}
-	
-	@Override
-	public void actionPerformed(ActionEvent event) {
-		frame.lastFilter = ((JMenuItem)event.getSource()).getName();
-		frame.filterManager.process(frame.imagePanel.getImage(), frame.lastFilter);
-		frame.imagePanel.repaint();
-		frame.filtersMenu.getItem(0).setEnabled(true);
-	}
-	
-}
+  private JMenuItem cascade = new JMenuItem("Cascade");
 
-// Main class (JFrame)
-public class FilterFw extends JFrame {
-	// Evil public vars
-	public JImagePanel imagePanel;
-	public FilterManager filterManager;
-	public JMenu filtersMenu;
-	public String lastFilter = null;
-	public String currentImageFilename = null;
-	
-	public FilterFw() {
-		setTitle("FilterFw");
-		setDefaultCloseOperation(EXIT_ON_CLOSE);
-		setLayout(new BorderLayout());
-		
-		// Menu
-        JMenuBar menubar = new JMenuBar();
-        
-        // File
-        JMenu file = new JMenu("File");
-        file.setMnemonic(KeyEvent.VK_F);
-        // Open
-        JMenuItem fileOpen = new JMenuItem("Open");
-		fileOpen.setAccelerator(KeyStroke.getKeyStroke("ctrl O"));
-        fileOpen.setMnemonic(KeyEvent.VK_O);
-        fileOpen.addActionListener(new FrameActionListener(this) {
-            public void actionPerformed(ActionEvent event) {
-            	JFileChooser fc = new JFileChooser();
-            	addImageFilters(fc);
-            	if (fc.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
-            		frame.currentImageFilename = fc.getSelectedFile().getAbsolutePath();
-            		loadImage(frame.currentImageFilename);
-            	}
-            }
-        });
-        file.add(fileOpen);
-        // ReOpen
-        JMenuItem fileReopen = new JMenuItem("Reopen");
-        fileReopen.setMnemonic(KeyEvent.VK_R);
-        fileReopen.setAccelerator(KeyStroke.getKeyStroke("ctrl R"));
-        fileReopen.addActionListener(new FrameActionListener(this) {
-            public void actionPerformed(ActionEvent event) {
-            	loadImage(frame.currentImageFilename);
-            }
-        });
-        file.add(fileReopen);
-        // Save
-        JMenuItem fileSave = new JMenuItem("Save");
-        fileSave.setMnemonic(KeyEvent.VK_S);
-		fileSave.setAccelerator(KeyStroke.getKeyStroke("ctrl S"));
-        fileSave.addActionListener(new FrameActionListener(this) {
-            public void actionPerformed(ActionEvent event) {
-            	JFileChooser fc = new JFileChooser();
-            	//addImageFilters(fc);
-            	if (fc.showSaveDialog(frame) == JFileChooser.APPROVE_OPTION)
-            		saveImage(fc.getSelectedFile().getAbsolutePath());
-            }
-        });
-        file.add(fileSave);
-        // Exit
-        JMenuItem fileClose = new JMenuItem("Exit");
-        fileClose.setMnemonic(KeyEvent.VK_E);
-        fileClose.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent event) {
-                System.exit(0);
-            }
-        });
-        file.add(fileClose);
+  private JMenuItem tile = new JMenuItem("Tile");
 
-        filtersMenu = new JMenu("Filters");
-        filtersMenu.setMnemonic(KeyEvent.VK_I);
+  public WindowMenu(MDIDesktopPane desktop) {
+    this.desktop = desktop;
+    setText("Window");
+    cascade.addActionListener(new ActionListener() {
+      public void actionPerformed(ActionEvent ae) {
+        WindowMenu.this.desktop.cascadeFrames();
+      }
+    });
+    tile.addActionListener(new ActionListener() {
+      public void actionPerformed(ActionEvent ae) {
+        WindowMenu.this.desktop.tileFrames();
+      }
+    });
+    addMenuListener(new MenuListener() {
+      public void menuCanceled(MenuEvent e) {
+      }
 
-        menubar.add(file);
-        menubar.add(filtersMenu);
-        setJMenuBar(menubar);
+      public void menuDeselected(MenuEvent e) {
+        removeAll();
+      }
 
-        // ImagePanel
-        imagePanel = new JImagePanel(null, 0, 0);
-        add(imagePanel, BorderLayout.CENTER);
+      public void menuSelected(MenuEvent e) {
+        buildChildMenus();
+      }
+    });
+  }
 
-		setSize(300, 300);
-		setVisible(true);
-		
-		filterManager = new FilterManager(getClass().getProtectionDomain().getCodeSource().getLocation().getFile() + "/filters");
-		refreshFiltersMenu();
-	}
-	
-	public void refreshFiltersMenu() {
-		JMenuItem mi;
-		filtersMenu.removeAll();
+  /* Sets up the children menus depending on the current desktop state */
+  private void buildChildMenus() {
+    int i;
+    ChildMenuItem menu;
+    JInternalFrame[] array = desktop.getAllFrames();
 
-		mi = new JMenuItem("Repeat last filter");
-		mi.addActionListener(new FrameActionListener(this) {
-            public void actionPerformed(ActionEvent event) {
-            	if (frame.lastFilter != null) {
-	        		frame.filterManager.process(frame.imagePanel.getImage(), frame.lastFilter);
-	        		frame.imagePanel.repaint();
-            	}
-            }
-		});
-		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl F"));
-		mi.setEnabled(false);
-		filtersMenu.add(mi);
-		
-		// Filters
-		for (FilterPlugin filter : filterManager.filters) {
-			mi = new JMenuItem(filter.name());
-			mi.setName(filter.getClass().getName());
-			mi.addActionListener(new FilterActionListener(this));
-			filtersMenu.add(mi);
-		}
-		
-		mi = new JMenuItem("Reload filters");
-		mi.addActionListener(new FrameActionListener(this) {
-            public void actionPerformed(ActionEvent event) {
-                frame.filterManager.loadAllFilters();
-                frame.refreshFiltersMenu();
-            }
-		});
-		filtersMenu.add(mi);
-	}
-	
-	public static void addImageFilters(JFileChooser fc) {
-    	fc.addChoosableFileFilter(new CustomFileFilter(new String[] {"jpeg", "jpg", "png", "gif"}));
-	}
-	
-	public void saveImage(String ref) {  
-	    try {
-	    	if (ref.indexOf(".") == -1) ref += ".jpg"; // default ext, .jpg
-	        String format = (ref.endsWith(".png")) ? "png" : "jpg";  
-	        ImageIO.write(imagePanel.getImage(), format, new File(ref));  
-	    } catch (IOException e) {  
-	        e.printStackTrace();  
-	    }  
-	}  
-	
-	public void loadImage(String ref) {  
-		if (ref == null || ref == "") return;
-        BufferedImage bimg = null;  
-        try {
-            bimg = ImageIO.read(new File(ref));  
-        } catch (Exception e) {  
-            e.printStackTrace();  
+    add(cascade);
+    add(tile);
+    if (array.length > 0)
+      addSeparator();
+    cascade.setEnabled(array.length > 0);
+    tile.setEnabled(array.length > 0);
+
+    for (i = 0; i < array.length; i++) {
+      menu = new ChildMenuItem(array[i]);
+      menu.setState(i == 0);
+      menu.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent ae) {
+          JInternalFrame frame = ((ChildMenuItem) ae.getSource()).getFrame();
+          frame.moveToFront();
+          try {
+            frame.setSelected(true);
+          } catch (PropertyVetoException e) {
+            e.printStackTrace();
+          }
         }
-        imagePanel.setImage(bimg);
-		pack();
+      });
+      menu.setIcon(array[i].getFrameIcon());
+      add(menu);
     }
-	
-	public static void main(String[] args) {
-		FilterFw ui = new FilterFw();
-		ui.setVisible(true);
-	}
+  }
+
+  /*
+   * This JCheckBoxMenuItem descendant is used to track the child frame that
+   * corresponds to a give menu.
+   */
+  class ChildMenuItem extends JCheckBoxMenuItem {
+    private JInternalFrame frame;
+
+    public ChildMenuItem(JInternalFrame frame) {
+      super(frame.getTitle());
+      this.frame = frame;
+    }
+
+    public JInternalFrame getFrame() {
+      return frame;
+    }
+  }
 }
