@@ -185,6 +185,17 @@ public class FilterFw extends JFrame {
             }
         });
         viewMenu.add(mi);
+		// View -> Zoom 100%
+        mi = new JMenuItem("Zoom to 100%");
+        mi.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent event) {
+            	ImageFrame f = getSelf().getSelectedFrame();
+            	if (f != null) {
+            		f.zoom(1.0f, false);
+            	}
+            }
+        });
+        viewMenu.add(mi);
 		// Edit -> Duplicate
         mi = new JMenuItem("Duplicate image");
 		mi.setAccelerator(KeyStroke.getKeyStroke("ctrl D"));

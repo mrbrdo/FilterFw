@@ -36,6 +36,8 @@ public class ImagePanel extends JPanel implements MouseWheelListener {
 			scaleFactor = value;
 		else
 			scaleFactor += value;
+		if (scaleFactor < 0.1f) scaleFactor = 0.1f;
+		else if (scaleFactor > 10.0f) scaleFactor = 10.0f;
     	this.setPreferredSize(new Dimension((int) (image.getWidth() * scaleFactor), (int) (image.getHeight() * scaleFactor)));
     	this.revalidate();
 		this.repaint();
